@@ -2,6 +2,13 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Sidebar from './Sidebar';
+import { 
+  exportKpiReport, 
+  exportRfpPerformance, 
+  exportWinLossAnalysis, 
+  exportTeamProductivity, 
+  exportRevenueMetrics 
+} from '../utils/excelExport';
 
 const Reports = () => {
   const navigate = useNavigate();
@@ -9,6 +16,7 @@ const Reports = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeMenuItem, setActiveMenuItem] = useState('reports');
   const [selectedPeriod, setSelectedPeriod] = useState('month');
+  const [isExporting, setIsExporting] = useState(false);
 
   // Safety check - if no user, show loading or redirect
   if (!currentUser) {
@@ -30,21 +38,63 @@ const Reports = () => {
   ];
 
   const reportCategories = [
-    { id: 'rfp-performance', label: 'RFP Performance', icon: 'chart-bar', color: 'blue' },
-    { id: 'win-loss', label: 'Win/Loss Analysis', icon: 'pie-chart', color: 'green' },
-    { id: 'revenue', label: 'Revenue Metrics', icon: 'currency-dollar', color: 'purple' },
-    { id: 'team-productivity', label: 'Team Productivity', icon: 'users', color: 'indigo' },
-    { id: 'client-satisfaction', label: 'Client Satisfaction', icon: 'heart', color: 'pink' },
-    { id: 'timeline', label: 'Timeline Analysis', icon: 'clock', color: 'yellow' }
+    { 
+      id: 'rfp-performance', 
+      label: 'RFP Performance', 
+      icon: 'chart-bar', 
+      color: 'blue',
+      exportFunction: exportRfpPerformance,
+      description: 'Monthly RFP submission, win rates, and performance metrics'
+    },
+    { 
+      id: 'win-loss', 
+      label: 'Win/Loss Analysis', 
+      icon: 'pie-chart', 
+      color: 'green',
+      exportFunction: exportWinLossAnalysis,
+      description: 'Detailed analysis by category and industry vertical'
+    },
+    { 
+      id: 'revenue', 
+      label: 'Revenue Metrics', 
+      icon: 'currency-dollar', 
+      color: 'purple',
+      exportFunction: exportRevenueMetrics,
+      description: 'Revenue trends, growth rates, and business mix analysis'
+    },
+    { 
+      id: 'team-productivity', 
+      label: 'Team Productivity', 
+      icon: 'users', 
+      color: 'indigo',
+      exportFunction: exportTeamProductivity,
+      description: 'Individual and team performance metrics'
+    },
+    { 
+      id: 'client-satisfaction', 
+      label: 'Client Satisfaction', 
+      icon: 'heart', 
+      color: 'pink',
+      exportFunction: null,
+      description: 'Client feedback and satisfaction scores'
+    },
+    { 
+      id: 'timeline', 
+      label: 'Timeline Analysis', 
+      icon: 'clock', 
+      color: 'yellow',
+      exportFunction: null,
+      description: 'Process efficiency and timeline optimization'
+    }
   ];
 
   const performanceData = [
-    { month: 'Jan', submitted: 12, won: 8, lost: 4, winRate: 67 },
-    { month: 'Feb', submitted: 15, won: 10, lost: 5, winRate: 67 },
-    { month: 'Mar', submitted: 18, won: 12, lost: 6, winRate: 67 },
-    { month: 'Apr', submitted: 14, won: 9, lost: 5, winRate: 64 },
-    { month: 'May', submitted: 16, won: 11, lost: 5, winRate: 69 },
-    { month: 'Jun', submitted: 20, won: 14, lost: 6, winRate: 70 }
+    { month: 'Jan', submitted: 12, won: 8, lost: 4, winRate: 67, revenue: 1000000 },
+    { month: 'Feb', submitted: 15, won: 10, lost: 5, winRate: 67, revenue: 1350000 },
+    { month: 'Mar', submitted: 18, won: 12, lost: 6, winRate: 67, revenue: 1704000 },
+    { month: 'Apr', submitted: 14, won: 9, lost: 5, winRate: 64, revenue: 1242000 },
+    { month: 'May', submitted: 16, won: 11, lost: 5, winRate: 69, revenue: 1595000 },
+    { month: 'Jun', submitted: 20, won: 14, lost: 6, winRate: 70, revenue: 2100000 }
   ];
 
   const getIcon = (iconName) => {
@@ -96,6 +146,45 @@ const Reports = () => {
     return colors[color] || 'bg-blue-500';
   };
 
+  const handleExport = async (exportFunction, reportName) => {
+    if (!exportFunction) {
+      alert(`${reportName} export is coming soon!`);
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      await exportFunction(selectedPeriod);
+      // Show success message
+      setTimeout(() => {
+        setIsExporting(false);
+      }, 1000);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Export failed. Please try again.');
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportAll = async () => {
+    setIsExporting(true);
+    try {
+      await exportKpiReport(selectedPeriod);
+      setTimeout(() => {
+        setIsExporting(false);
+      }, 1000);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Export failed. Please try again.');
+      setIsExporting(false);
+    }
+  };
+
+  const totalRfps = performanceData.reduce((sum, item) => sum + item.submitted, 0);
+  const totalWon = performanceData.reduce((sum, item) => sum + item.won, 0);
+  const overallWinRate = Math.round((totalWon / totalRfps) * 100);
+  const totalRevenue = performanceData.reduce((sum, item) => sum + item.revenue, 0);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Sidebar */}
@@ -143,11 +232,26 @@ const Reports = () => {
                   </option>
                 ))}
               </select>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Export
+              <button 
+                onClick={handleExportAll}
+                disabled={isExporting}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isExporting ? (
+                  <>
+                    <svg className="w-5 h-5 inline mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export All KPIs
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -158,15 +262,31 @@ const Reports = () => {
           {/* Report Categories Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {reportCategories.map((category) => (
-              <div key={category.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer">
-                <div className="flex items-center space-x-4">
+              <div key={category.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+                <div className="flex items-center space-x-4 mb-4">
                   <div className={`w-12 h-12 ${getIconColor(category.color)} rounded-lg flex items-center justify-center`}>
                     {getIcon(category.icon)}
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">{category.label}</h3>
-                    <p className="text-sm text-gray-500">View detailed analysis</p>
+                    <p className="text-sm text-gray-500">{category.description}</p>
                   </div>
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => handleExport(category.exportFunction, category.label)}
+                    disabled={!category.exportFunction || isExporting}
+                    className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      category.exportFunction 
+                        ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50' 
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    {isExporting ? 'Exporting...' : 'Export Excel'}
+                  </button>
+                  <button className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors">
+                    View
+                  </button>
                 </div>
               </div>
             ))}
@@ -176,7 +296,7 @@ const Reports = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
               <div className="text-center">
-                <p className="text-3xl font-bold text-blue-600 mb-2">95</p>
+                <p className="text-3xl font-bold text-blue-600 mb-2">{totalRfps}</p>
                 <p className="text-sm text-gray-600">Total RFPs</p>
                 <p className="text-xs text-green-600 mt-1">+12% from last month</p>
               </div>
@@ -184,7 +304,7 @@ const Reports = () => {
 
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
               <div className="text-center">
-                <p className="text-3xl font-bold text-green-600 mb-2">68%</p>
+                <p className="text-3xl font-bold text-green-600 mb-2">{overallWinRate}%</p>
                 <p className="text-sm text-gray-600">Win Rate</p>
                 <p className="text-xs text-green-600 mt-1">+5% from last month</p>
               </div>
@@ -192,7 +312,7 @@ const Reports = () => {
 
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
               <div className="text-center">
-                <p className="text-3xl font-bold text-purple-600 mb-2">$2.4M</p>
+                <p className="text-3xl font-bold text-purple-600 mb-2">${(totalRevenue / 1000000).toFixed(1)}M</p>
                 <p className="text-sm text-gray-600">Total Revenue</p>
                 <p className="text-xs text-green-600 mt-1">+18% from last month</p>
               </div>
@@ -230,6 +350,9 @@ const Reports = () => {
                     <div className="w-20 text-sm text-gray-600 text-right">
                       {data.winRate}% Win Rate
                     </div>
+                    <div className="w-24 text-sm text-gray-600 text-right">
+                      ${(data.revenue / 1000000).toFixed(1)}M
+                    </div>
                   </div>
                 ))}
               </div>
@@ -255,8 +378,12 @@ const Reports = () => {
                       <p className="text-sm text-gray-500">Generated on May 15, 2024</p>
                     </div>
                   </div>
-                  <button className="px-3 py-1 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors">
-                    Download
+                  <button 
+                    onClick={() => handleExport(exportKpiReport, 'Q2 Performance')}
+                    disabled={isExporting}
+                    className="px-3 py-1 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50"
+                  >
+                    {isExporting ? 'Exporting...' : 'Download'}
                   </button>
                 </div>
               </div>
@@ -274,8 +401,12 @@ const Reports = () => {
                       <p className="text-sm text-gray-500">Generated on May 10, 2024</p>
                     </div>
                   </div>
-                  <button className="px-3 py-1 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors">
-                    Download
+                  <button 
+                    onClick={() => handleExport(exportWinLossAnalysis, 'Win/Loss Analysis')}
+                    disabled={isExporting}
+                    className="px-3 py-1 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50"
+                  >
+                    {isExporting ? 'Exporting...' : 'Download'}
                   </button>
                 </div>
               </div>
@@ -293,8 +424,12 @@ const Reports = () => {
                       <p className="text-sm text-gray-500">Generated on May 5, 2024</p>
                     </div>
                   </div>
-                  <button className="px-3 py-1 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors">
-                    Download
+                  <button 
+                    onClick={() => handleExport(exportRevenueMetrics, 'Revenue Summary')}
+                    disabled={isExporting}
+                    className="px-3 py-1 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50"
+                  >
+                    {isExporting ? 'Exporting...' : 'Download'}
                   </button>
                 </div>
               </div>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Sidebar from './Sidebar';
+import AddRfpModal from './AddRfpModal';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -9,6 +10,7 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('all');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeMenuItem, setActiveMenuItem] = useState('rfp-dashboard');
+  const [isRfpModalOpen, setIsRfpModalOpen] = useState(false);
 
   // Safety check - if no user, show loading or redirect
   if (!currentUser) {
@@ -328,6 +330,20 @@ const Dashboard = () => {
     return icons[iconName] || icons.folder;
   };
 
+  const handleCreateRfp = (rfpData) => {
+    // Here you would typically send the data to your backend
+    console.log('Creating new RFP:', rfpData);
+    
+    // For now, just show an alert
+    alert(`RFP "${rfpData.title}" created successfully!`);
+    
+    // In a real application, you would:
+    // 1. Send the data to your API
+    // 2. Update the local state
+    // 3. Refresh the RFP list
+    // 4. Show a success notification
+  };
+
   const filteredRfpData = getFilteredRfpData();
   const tabCounts = getTabCounts();
   const filteredStats = getFilteredStats();
@@ -372,7 +388,10 @@ const Dashboard = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </button>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+              <button 
+                onClick={() => setIsRfpModalOpen(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
                 <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
@@ -493,6 +512,13 @@ const Dashboard = () => {
           </div>
         </main>
       </div>
+
+      {/* Add RFP Modal */}
+      <AddRfpModal
+        isOpen={isRfpModalOpen}
+        onClose={() => setIsRfpModalOpen(false)}
+        onSubmit={handleCreateRfp}
+      />
     </div>
   );
 };
