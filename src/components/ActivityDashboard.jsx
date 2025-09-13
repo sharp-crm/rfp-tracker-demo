@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Sidebar from './Sidebar';
 import AddActivityModal from './AddActivityModal';
+import activityService from '../services/activityService';
 
 const ActivityDashboard = () => {
   const navigate = useNavigate();
@@ -10,6 +11,34 @@ const ActivityDashboard = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
+  const [activities, setActivities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch activities from database
+  useEffect(() => {
+    const fetchActivities = async () => {
+      if (!currentUser) return;
+      
+      try {
+        setLoading(true);
+        setError(null);
+        const result = await activityService.getAllActivities();
+        if (result.success) {
+          setActivities(result.data || []);
+        } else {
+          setError(result.error || 'Failed to fetch activities');
+        }
+      } catch (err) {
+        console.error('Error fetching activities:', err);
+        setError('Failed to fetch activities');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchActivities();
+  }, [currentUser]);
 
   // Safety check - if no user, show loading or redirect
   if (!currentUser) {
@@ -31,128 +60,7 @@ const ActivityDashboard = () => {
     { id: 'other', label: 'Other' }
   ];
 
-  const activities = [
-    {
-      id: 1,
-      type: 'call',
-      title: 'Call with XYZ Ltd',
-      detail: 'Sales Lead: Alice Brown',
-      status: 'Pending',
-      date: 'Apr 24',
-      icon: 'phone',
-      iconColor: 'blue'
-    },
-    {
-      id: 2,
-      type: 'meeting',
-      title: 'Meeting with ABC Corp',
-      detail: 'Client: John Doe',
-      status: 'Scheduled',
-      time: '10:00 AM',
-      icon: 'calendar',
-      iconColor: 'blue'
-    },
-    {
-      id: 3,
-      type: 'follow-up',
-      title: 'Follow-up with DEF Inc',
-      detail: 'Contact: Michael Smith',
-      status: 'Completed',
-      date: 'Apr 23',
-      icon: 'check',
-      iconColor: 'green'
-    },
-    {
-      id: 4,
-      type: 'meeting',
-      title: 'Meeting with GHI Systems (Rescheduled)',
-      detail: 'Client: Emma Wilson',
-      status: 'Rescheduled',
-      time: '2:30 PM',
-      icon: 'calendar',
-      iconColor: 'blue'
-    },
-    {
-      id: 5,
-      type: 'meeting',
-      title: 'Meeting with GHI Systems',
-      detail: 'Client: Emma Wilson',
-      status: 'Scheduled',
-      time: '2:30 PM',
-      icon: 'calendar',
-      iconColor: 'blue'
-    },
-    {
-      id: 6,
-      type: 'call',
-      title: 'Call with JKL Solutions',
-      detail: 'Prospect: Robert Johnson',
-      status: 'Completed',
-      date: 'Apr 22',
-      icon: 'phone',
-      iconColor: 'green'
-    },
-    {
-      id: 7,
-      type: 'follow-up',
-      title: 'Follow-up with MNO Corp',
-      detail: 'Contact: Sarah Davis',
-      status: 'Pending',
-      date: 'Apr 25',
-      icon: 'check',
-      iconColor: 'yellow'
-    },
-    {
-      id: 8,
-      type: 'other',
-      title: 'Document Review',
-      detail: 'RFP: Naval Equipment Supply',
-      status: 'In Progress',
-      date: 'Apr 26',
-      icon: 'document',
-      iconColor: 'purple'
-    },
-    {
-      id: 9,
-      type: 'call',
-      title: 'Call with PQR Industries',
-      detail: 'Client: David Wilson',
-      status: 'Scheduled',
-      time: '3:00 PM',
-      icon: 'phone',
-      iconColor: 'blue'
-    },
-    {
-      id: 10,
-      type: 'meeting',
-      title: 'Team Standup',
-      detail: 'Internal: Development Team',
-      status: 'Scheduled',
-      time: '9:00 AM',
-      icon: 'calendar',
-      iconColor: 'indigo'
-    },
-    {
-      id: 11,
-      type: 'follow-up',
-      title: 'Follow-up with RST Ltd',
-      detail: 'Contact: Lisa Anderson',
-      status: 'Completed',
-      date: 'Apr 21',
-      icon: 'check',
-      iconColor: 'green'
-    },
-    {
-      id: 12,
-      type: 'other',
-      title: 'Proposal Preparation',
-      detail: 'RFP: Cybersecurity Services',
-      status: 'In Progress',
-      date: 'Apr 27',
-      icon: 'document',
-      iconColor: 'purple'
-    }
-  ];
+  // Activities are now fetched from the database via useEffect
 
   // Filter activities based on active filter
   const getFilteredActivities = () => {
@@ -323,18 +231,24 @@ const ActivityDashboard = () => {
     return colors[color] || 'bg-blue-500';
   };
 
-  const handleCreateActivity = (activityData) => {
-    // Here you would typically send the data to your backend
-    console.log('Creating new activity:', activityData);
-    
-    // For now, just show an alert
-    alert(`Activity "${activityData.title}" created successfully!`);
-    
-    // In a real application, you would:
-    // 1. Send the data to your API
-    // 2. Update the local state
-    // 3. Refresh the activity list
-    // 4. Show a success notification
+  const handleCreateActivity = async (activityData) => {
+    try {
+      const result = await activityService.createActivity(activityData);
+      if (result.success) {
+        // Refresh the activities list
+        const refreshResult = await activityService.getAllActivities();
+        if (refreshResult.success) {
+          setActivities(refreshResult.data || []);
+        }
+        alert(`Activity "${activityData.title}" created successfully!`);
+        setIsActivityModalOpen(false);
+      } else {
+        alert(`Failed to create activity: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error creating activity:', error);
+      alert('Failed to create activity. Please try again.');
+    }
   };
 
   const filteredActivities = getFilteredActivities();
@@ -396,8 +310,36 @@ const ActivityDashboard = () => {
 
         {/* Main Dashboard Content */}
         <main className="p-6">
-          {/* Filter Tabs */}
-          <div className="mb-8">
+          {/* Loading State */}
+          {loading && (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading activities...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex">
+                <svg className="w-5 h-5 text-red-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">Error loading activities</h3>
+                  <p className="text-sm text-red-700 mt-1">{error}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Content - only show when not loading */}
+          {!loading && (
+            <>
+              {/* Filter Tabs */}
+              <div className="mb-8">
             <div className="flex space-x-1 bg-white p-1 rounded-lg shadow-sm border border-gray-200">
               {filters.map((filter) => (
                 <button
@@ -520,6 +462,8 @@ const ActivityDashboard = () => {
               </div>
             </div>
           </div>
+            </>
+          )}
         </main>
       </div>
 

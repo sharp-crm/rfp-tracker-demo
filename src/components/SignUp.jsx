@@ -1,17 +1,25 @@
 import { useState } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
-const Login = () => {
+const SignUp = () => {
   const [formData, setFormData] = useState({
+    name: '',
     email: '',
-    password: ''
+    password: '',
+    confirmPassword: '',
+    role: 'User'
   });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation();
-  const { login } = useAuth();
+  const { signUp } = useAuth();
+
+  const roles = [
+    { value: 'User', label: 'User' },
+    { value: 'Manager', label: 'Manager' },
+    { value: 'Administrator', label: 'Administrator' }
+  ];
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -19,6 +27,7 @@ const Login = () => {
       ...prev,
       [name]: value
     }));
+    
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
@@ -31,6 +40,12 @@ const Login = () => {
   const validateForm = () => {
     const newErrors = {};
     
+    if (!formData.name.trim()) {
+      newErrors.name = 'Name is required';
+    } else if (formData.name.trim().length < 2) {
+      newErrors.name = 'Name must be at least 2 characters';
+    }
+    
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
@@ -41,6 +56,12 @@ const Login = () => {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 6) {
       newErrors.password = 'Password must be at least 6 characters';
+    }
+    
+    if (!formData.confirmPassword.trim()) {
+      newErrors.confirmPassword = 'Please confirm your password';
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
     }
     
     setErrors(newErrors);
@@ -57,15 +78,16 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      // Call the login function from auth context
-      const result = await login(formData.email, formData.password);
+      const result = await signUp(formData.email, formData.password, {
+        name: formData.name,
+        role: formData.role
+      });
       
       if (result.success) {
-        // Redirect to intended page or dashboard
-        const from = location.state?.from?.pathname || '/dashboard';
-        navigate(from, { replace: true });
+        alert('Account created successfully! Please check your email for verification.');
+        navigate('/');
       } else {
-        setErrors({ general: result.error || 'Invalid email or password' });
+        setErrors({ general: result.error || 'Failed to create account' });
       }
     } catch (error) {
       setErrors({ general: 'An error occurred. Please try again.' });
@@ -83,12 +105,14 @@ const Login = () => {
             <span className="text-2xl font-bold text-white">R</span>
           </div>
           <h2 className="text-3xl font-bold text-gray-900 mb-2">
-            RFP Tracker
+            Create Account
           </h2>
-          
+          <p className="text-gray-600">
+            Join RFP Tracker to manage your proposals
+          </p>
         </div>
 
-        {/* Login Form */}
+        {/* Sign Up Form */}
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
           <form className="space-y-6" onSubmit={handleSubmit}>
             {/* General Error */}
@@ -97,6 +121,29 @@ const Login = () => {
                 <p className="text-sm text-red-600">{errors.general}</p>
               </div>
             )}
+
+            {/* Name Field */}
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                Full Name
+              </label>
+              <input
+                id="name"
+                name="name"
+                type="text"
+                autoComplete="name"
+                required
+                value={formData.name}
+                onChange={handleInputChange}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
+                  errors.name ? 'border-red-300' : 'border-gray-300'
+                }`}
+                placeholder="Enter your full name"
+              />
+              {errors.name && (
+                <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+              )}
+            </div>
 
             {/* Email Field */}
             <div>
@@ -121,6 +168,26 @@ const Login = () => {
               )}
             </div>
 
+            {/* Role Field */}
+            <div>
+              <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
+                Role
+              </label>
+              <select
+                id="role"
+                name="role"
+                value={formData.role}
+                onChange={handleInputChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              >
+                {roles.map(role => (
+                  <option key={role.value} value={role.value}>
+                    {role.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Password Field */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
@@ -130,17 +197,40 @@ const Login = () => {
                 id="password"
                 name="password"
                 type="password"
-                autoComplete="current-password"
+                autoComplete="new-password"
                 required
                 value={formData.password}
                 onChange={handleInputChange}
                 className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
                   errors.password ? 'border-red-300' : 'border-gray-300'
                 }`}
-                placeholder="Enter your password"
+                placeholder="Create a password"
               />
               {errors.password && (
                 <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+              )}
+            </div>
+
+            {/* Confirm Password Field */}
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                Confirm Password
+              </label>
+              <input
+                id="confirmPassword"
+                name="confirmPassword"
+                type="password"
+                autoComplete="new-password"
+                required
+                value={formData.confirmPassword}
+                onChange={handleInputChange}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
+                  errors.confirmPassword ? 'border-red-300' : 'border-gray-300'
+                }`}
+                placeholder="Confirm your password"
+              />
+              {errors.confirmPassword && (
+                <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
               )}
             </div>
 
@@ -156,35 +246,25 @@ const Login = () => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Signing in...
+                  Creating Account...
                 </div>
               ) : (
-                'Sign in'
+                'Create Account'
               )}
             </button>
           </form>
 
-          {/* Sign Up Link */}
+          {/* Login Link */}
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              Don't have an account?{' '}
+              Already have an account?{' '}
               <Link 
-                to="/signup" 
+                to="/" 
                 className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
               >
-                Create one here
+                Sign in here
               </Link>
             </p>
-          </div>
-
-          {/* Demo Users Info */}
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <p className="text-xs text-gray-600 mb-2 font-medium">Demo Users:</p>
-            <div className="space-y-1 text-xs text-gray-500">
-              <p>• admin@rfp.com / admin123</p>
-              <p>• user@rfp.com / user123</p>
-              <p>• manager@rfp.com / manager123</p>
-            </div>
           </div>
         </div>
       </div>
@@ -192,4 +272,4 @@ const Login = () => {
   );
 };
 
-export default Login; 
+export default SignUp;

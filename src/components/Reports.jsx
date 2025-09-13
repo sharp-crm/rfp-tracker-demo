@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Sidebar from './Sidebar';
+import rfpService from '../services/rfpService';
+import activityService from '../services/activityService';
 import { 
   exportKpiReport, 
   exportRfpPerformance, 
@@ -17,6 +19,47 @@ const Reports = () => {
   const [activeMenuItem, setActiveMenuItem] = useState('reports');
   const [selectedPeriod, setSelectedPeriod] = useState('month');
   const [isExporting, setIsExporting] = useState(false);
+  const [rfpData, setRfpData] = useState([]);
+  const [activityData, setActivityData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch data from database
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!currentUser) return;
+      
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Fetch RFPs and Activities in parallel
+        const [rfpResult, activityResult] = await Promise.all([
+          rfpService.getAllRfps(),
+          activityService.getAllActivities()
+        ]);
+        
+        if (rfpResult.success) {
+          setRfpData(rfpResult.data || []);
+        }
+        
+        if (activityResult.success) {
+          setActivityData(activityResult.data || []);
+        }
+        
+        if (!rfpResult.success || !activityResult.success) {
+          setError('Failed to fetch some data');
+        }
+      } catch (err) {
+        console.error('Error fetching data:', err);
+        setError('Failed to fetch data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [currentUser]);
 
   // Safety check - if no user, show loading or redirect
   if (!currentUser) {
@@ -88,14 +131,49 @@ const Reports = () => {
     }
   ];
 
-  const performanceData = [
-    { month: 'Jan', submitted: 12, won: 8, lost: 4, winRate: 67, revenue: 1000000 },
-    { month: 'Feb', submitted: 15, won: 10, lost: 5, winRate: 67, revenue: 1350000 },
-    { month: 'Mar', submitted: 18, won: 12, lost: 6, winRate: 67, revenue: 1704000 },
-    { month: 'Apr', submitted: 14, won: 9, lost: 5, winRate: 64, revenue: 1242000 },
-    { month: 'May', submitted: 16, won: 11, lost: 5, winRate: 69, revenue: 1595000 },
-    { month: 'Jun', submitted: 20, won: 14, lost: 6, winRate: 70, revenue: 2100000 }
-  ];
+  // Calculate performance data from database
+  const calculatePerformanceData = () => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    // Group RFPs by month
+    const monthlyData = {};
+    
+    rfpData.forEach(rfp => {
+      const rfpDate = new Date(rfp.created_at);
+      const monthKey = `${rfpDate.getFullYear()}-${rfpDate.getMonth()}`;
+      
+      if (!monthlyData[monthKey]) {
+        monthlyData[monthKey] = {
+          month: rfpDate.toLocaleDateString('en-US', { month: 'short' }),
+          submitted: 0,
+          won: 0,
+          lost: 0,
+          revenue: 0
+        };
+      }
+      
+      monthlyData[monthKey].submitted++;
+      
+      if (rfp.status === 'Won') {
+        monthlyData[monthKey].won++;
+        monthlyData[monthKey].revenue += rfp.estimated_value || 0;
+      } else if (rfp.status === 'Lost') {
+        monthlyData[monthKey].lost++;
+      }
+    });
+    
+    // Convert to array and calculate win rates
+    const performanceData = Object.values(monthlyData).map(data => ({
+      ...data,
+      winRate: data.submitted > 0 ? Math.round((data.won / data.submitted) * 100) : 0
+    }));
+    
+    return performanceData;
+  };
+
+  const performanceData = calculatePerformanceData();
 
   const getIcon = (iconName) => {
     const icons = {
@@ -259,8 +337,36 @@ const Reports = () => {
 
         {/* Main Content */}
         <main className="p-6">
-          {/* Report Categories Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {/* Loading State */}
+          {loading && (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading reports data...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex">
+                <svg className="w-5 h-5 text-red-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">Error loading reports data</h3>
+                  <p className="text-sm text-red-700 mt-1">{error}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Content - only show when not loading */}
+          {!loading && (
+            <>
+              {/* Report Categories Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {reportCategories.map((category) => (
               <div key={category.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
                 <div className="flex items-center space-x-4 mb-4">
@@ -435,6 +541,8 @@ const Reports = () => {
               </div>
             </div>
           </div>
+            </>
+          )}
         </main>
       </div>
     </div>

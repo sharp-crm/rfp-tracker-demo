@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import authService from '../services/authService';
 
 const AddRfpModal = ({ isOpen, onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
@@ -7,15 +8,44 @@ const AddRfpModal = ({ isOpen, onClose, onSubmit }) => {
     value: '$0.00',
     priority: 'High',
     deadline: '',
-    assignee: 'John Smith',
+    assignee: '',
     description: '',
     attachments: []
   });
 
   const [errors, setErrors] = useState({});
+  const [users, setUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
   const priorities = ['High', 'Medium', 'Low'];
-  const assignees = ['John Smith', 'Sarah Johnson', 'Mike Davis', 'Emma Wilson'];
+
+  // Fetch users when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchUsers();
+    }
+  }, [isOpen]);
+
+  const fetchUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      const result = await authService.getAllUsers();
+      if (result.success) {
+        setUsers(result.data || []);
+        // Set default assignee to first user if available
+        if (result.data && result.data.length > 0 && !formData.assignee) {
+          setFormData(prev => ({
+            ...prev,
+            assignee: result.data[0].name
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -67,11 +97,12 @@ const AddRfpModal = ({ isOpen, onClose, onSubmit }) => {
       value: '$0.00',
       priority: 'High',
       deadline: '',
-      assignee: 'John Smith',
+      assignee: '',
       description: '',
       attachments: []
     });
     setErrors({});
+    setUsers([]);
     onClose();
   };
 
@@ -211,10 +242,19 @@ const AddRfpModal = ({ isOpen, onClose, onSubmit }) => {
               value={formData.assignee}
               onChange={(e) => handleInputChange('assignee', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              disabled={loadingUsers}
             >
-              {assignees.map(assignee => (
-                <option key={assignee} value={assignee}>{assignee}</option>
-              ))}
+              {loadingUsers ? (
+                <option>Loading users...</option>
+              ) : users.length > 0 ? (
+                users.map(user => (
+                  <option key={user.id} value={user.name}>
+                    {user.name} ({user.role})
+                  </option>
+                ))
+              ) : (
+                <option>No users available</option>
+              )}
             </select>
           </div>
 

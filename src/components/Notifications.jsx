@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Sidebar from './Sidebar';
+import notificationService from '../services/notificationService';
 
 const Notifications = () => {
   const navigate = useNavigate();
@@ -9,6 +10,34 @@ const Notifications = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeMenuItem, setActiveMenuItem] = useState('notifications');
   const [activeFilter, setActiveFilter] = useState('all');
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch notifications from database
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (!currentUser) return;
+      
+      try {
+        setLoading(true);
+        setError(null);
+        const result = await notificationService.getUserNotifications(currentUser.id);
+        if (result.success) {
+          setNotifications(result.data || []);
+        } else {
+          setError(result.error || 'Failed to fetch notifications');
+        }
+      } catch (err) {
+        console.error('Error fetching notifications:', err);
+        setError('Failed to fetch notifications');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNotifications();
+  }, [currentUser]);
 
   // Safety check - if no user, show loading or redirect
   if (!currentUser) {
@@ -22,103 +51,25 @@ const Notifications = () => {
     );
   }
 
-  const filters = [
-    { id: 'all', label: 'All', count: 24 },
-    { id: 'unread', label: 'Unread', count: 8 },
-    { id: 'important', label: 'Important', count: 5 },
-    { id: 'rfp', label: 'RFP Updates', count: 12 },
-    { id: 'system', label: 'System', count: 7 }
-  ];
+  // Calculate filter counts dynamically from notifications
+  const getFilterCounts = () => {
+    return {
+      all: notifications.length,
+      unread: notifications.filter(n => !n.is_read).length,
+      important: notifications.filter(n => n.is_important).length,
+      rfp: notifications.filter(n => n.type === 'rfp').length,
+      system: notifications.filter(n => n.type === 'system').length
+    };
+  };
 
-  const notifications = [
-    {
-      id: 1,
-      type: 'rfp',
-      title: 'New RFP Submission Deadline',
-      message: 'RFP for Naval Equipment Supply is due in 3 days. Please ensure all documents are submitted on time.',
-      time: '2 hours ago',
-      isRead: false,
-      isImportant: true,
-      icon: 'bell',
-      iconColor: 'red'
-    },
-    {
-      id: 2,
-      type: 'rfp',
-      title: 'RFP Status Updated',
-      message: 'Your submission for Defense Systems Upgrade has been reviewed and is under evaluation.',
-      time: '4 hours ago',
-      isRead: false,
-      isImportant: false,
-      icon: 'check-circle',
-      iconColor: 'green'
-    },
-    {
-      id: 3,
-      type: 'system',
-      title: 'System Maintenance Notice',
-      message: 'Scheduled maintenance will occur on May 20th from 2:00 AM to 4:00 AM EST.',
-      time: '1 day ago',
-      isRead: true,
-      isImportant: false,
-      icon: 'wrench',
-      iconColor: 'blue'
-    },
-    {
-      id: 4,
-      type: 'rfp',
-      title: 'Client Feedback Received',
-      message: 'ABC Corporation has provided feedback on your recent proposal. Please review and respond.',
-      time: '1 day ago',
-      isRead: true,
-      isImportant: true,
-      icon: 'chat',
-      iconColor: 'purple'
-    },
-    {
-      id: 5,
-      type: 'system',
-      title: 'New Team Member Added',
-      message: 'Sarah Johnson has been added to your team. She will have access to RFP projects.',
-      time: '2 days ago',
-      isRead: true,
-      isImportant: false,
-      icon: 'user-plus',
-      iconColor: 'indigo'
-    },
-    {
-      id: 6,
-      type: 'rfp',
-      title: 'RFP Won - Congratulations!',
-      message: 'Your team has successfully won the Logistics Support Contract with LMN Industries.',
-      time: '3 days ago',
-      isRead: true,
-      isImportant: true,
-      icon: 'trophy',
-      iconColor: 'yellow'
-    },
-    {
-      id: 7,
-      type: 'system',
-      title: 'Document Upload Complete',
-      message: 'All required documents for the Surveillance Equipment RFP have been uploaded successfully.',
-      time: '4 days ago',
-      isRead: true,
-      isImportant: false,
-      icon: 'document',
-      iconColor: 'gray'
-    },
-    {
-      id: 8,
-      type: 'rfp',
-      title: 'Follow-up Reminder',
-      message: 'Don\'t forget to follow up with DEF Solutions regarding the Cybersecurity Services proposal.',
-      time: '5 days ago',
-      isRead: true,
-      isImportant: false,
-      icon: 'clock',
-      iconColor: 'orange'
-    }
+  const filterCounts = getFilterCounts();
+
+  const filters = [
+    { id: 'all', label: 'All', count: filterCounts.all },
+    { id: 'unread', label: 'Unread', count: filterCounts.unread },
+    { id: 'important', label: 'Important', count: filterCounts.important },
+    { id: 'rfp', label: 'RFP Updates', count: filterCounts.rfp },
+    { id: 'system', label: 'System', count: filterCounts.system }
   ];
 
   const getIcon = (iconName) => {
@@ -182,10 +133,42 @@ const Notifications = () => {
     return colors[color] || 'bg-blue-500';
   };
 
+  const handleMarkAsRead = async (notificationId) => {
+    try {
+      const result = await notificationService.markAsRead(notificationId);
+      if (result.success) {
+        // Update local state
+        setNotifications(prev => 
+          prev.map(notification => 
+            notification.id === notificationId 
+              ? { ...notification, is_read: true }
+              : notification
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      const result = await notificationService.markAllAsRead(currentUser.id);
+      if (result.success) {
+        // Update local state
+        setNotifications(prev => 
+          prev.map(notification => ({ ...notification, is_read: true }))
+        );
+      }
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  };
+
   const filteredNotifications = notifications.filter(notification => {
     if (activeFilter === 'all') return true;
-    if (activeFilter === 'unread') return !notification.isRead;
-    if (activeFilter === 'important') return notification.isImportant;
+    if (activeFilter === 'unread') return !notification.is_read;
+    if (activeFilter === 'important') return notification.is_important;
     if (activeFilter === 'rfp') return notification.type === 'rfp';
     if (activeFilter === 'system') return notification.type === 'system';
     return true;
@@ -227,7 +210,10 @@ const Notifications = () => {
               <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <button className="px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+              <button 
+                onClick={handleMarkAllAsRead}
+                className="px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              >
                 Mark all as read
               </button>
               <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
@@ -243,8 +229,36 @@ const Notifications = () => {
 
         {/* Main Content */}
         <main className="p-6">
-          {/* Filter Tabs */}
-          <div className="mb-8">
+          {/* Loading State */}
+          {loading && (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading notifications...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex">
+                <svg className="w-5 h-5 text-red-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">Error loading notifications</h3>
+                  <p className="text-sm text-red-700 mt-1">{error}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Content - only show when not loading */}
+          {!loading && (
+            <>
+              {/* Filter Tabs */}
+              <div className="mb-8">
             <div className="flex space-x-1 bg-white p-1 rounded-lg shadow-sm border border-gray-200">
               {filters.map((filter) => (
                 <button
@@ -278,7 +292,7 @@ const Notifications = () => {
                 <div 
                   key={notification.id} 
                   className={`px-6 py-4 hover:bg-gray-50 transition-colors ${
-                    !notification.isRead ? 'bg-blue-50' : ''
+                    !notification.is_read ? 'bg-blue-50' : ''
                   }`}
                 >
                   <div className="flex items-start space-x-4">
@@ -287,15 +301,15 @@ const Notifications = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2 mb-1">
-                        <h4 className={`text-sm font-medium ${!notification.isRead ? 'text-gray-900' : 'text-gray-700'}`}>
+                        <h4 className={`text-sm font-medium ${!notification.is_read ? 'text-gray-900' : 'text-gray-700'}`}>
                           {notification.title}
                         </h4>
-                        {notification.isImportant && (
+                        {notification.is_important && (
                           <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
                             Important
                           </span>
                         )}
-                        {!notification.isRead && (
+                        {!notification.is_read && (
                           <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
                         )}
                       </div>
@@ -303,8 +317,11 @@ const Notifications = () => {
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-gray-500">{notification.time}</span>
                         <div className="flex items-center space-x-2">
-                          {!notification.isRead && (
-                            <button className="text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 rounded transition-colors">
+                          {!notification.is_read && (
+                            <button 
+                              onClick={() => handleMarkAsRead(notification.id)}
+                              className="text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                            >
                               Mark as read
                             </button>
                           )}
@@ -331,6 +348,8 @@ const Notifications = () => {
               <h3 className="text-lg font-medium text-gray-900 mb-2">No notifications</h3>
               <p className="text-gray-500">You're all caught up! Check back later for new updates.</p>
             </div>
+          )}
+            </>
           )}
         </main>
       </div>

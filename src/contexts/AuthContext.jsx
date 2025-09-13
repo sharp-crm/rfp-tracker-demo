@@ -17,51 +17,121 @@ export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check authentication status on app load
-    const checkAuth = () => {
-      const user = authService.getCurrentUser();
-      const authStatus = authService.checkAuthStatus();
-      
-      setCurrentUser(user);
-      setIsAuthenticated(authStatus);
-      setIsLoading(false);
+    // Initialize authentication state
+    const initializeAuth = async () => {
+      try {
+        const success = await authService.initializeAuth();
+        if (success) {
+          const user = authService.getCurrentUser();
+          setCurrentUser(user);
+          setIsAuthenticated(true);
+        } else {
+          setCurrentUser(null);
+          setIsAuthenticated(false);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        setCurrentUser(null);
+        setIsAuthenticated(false);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    checkAuth();
+    initializeAuth();
+
+    // Listen to auth state changes
+    const { data: { subscription } } = authService.onAuthStateChange((isAuth, user) => {
+      setCurrentUser(user);
+      setIsAuthenticated(isAuth);
+      setIsLoading(false);
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, []);
 
-  const login = (email, password) => {
-    const success = authService.login(email, password);
-    
-    if (success) {
-      const user = authService.getCurrentUser();
-      setCurrentUser(user);
-      setIsAuthenticated(true);
-    }
-    
-    return success;
-  };
-
-  const logout = () => {
-    authService.logout();
-    setCurrentUser(null);
-    setIsAuthenticated(false);
-  };
-
-  const updateUserProfile = (updates) => {
-    if (currentUser) {
-      const success = authService.updateProfile(currentUser.id, updates);
-      if (success) {
-        const updatedUser = authService.getCurrentUser();
-        setCurrentUser(updatedUser);
+  const login = async (email, password) => {
+    try {
+      setIsLoading(true);
+      const result = await authService.signIn(email, password);
+      
+      if (result.success) {
+        const user = authService.getCurrentUser();
+        setCurrentUser(user);
+        setIsAuthenticated(true);
+        return { success: true };
+      } else {
+        return { success: false, error: result.error };
       }
-      return success;
+    } catch (error) {
+      return { success: false, error: error.message };
+    } finally {
+      setIsLoading(false);
     }
-    return false;
+  };
+
+  const signUp = async (email, password, userData) => {
+    try {
+      setIsLoading(true);
+      const result = await authService.signUp(email, password, userData);
+      
+      if (result.success) {
+        return { success: true, message: 'Account created successfully. Please check your email for verification.' };
+      } else {
+        return { success: false, error: result.error };
+      }
+    } catch (error) {
+      return { success: false, error: error.message };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      setIsLoading(true);
+      await authService.signOut();
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateUserProfile = async (updates) => {
+    if (currentUser) {
+      try {
+        const result = await authService.updateProfile(currentUser.id, updates);
+        if (result.success) {
+          const updatedUser = authService.getCurrentUser();
+          setCurrentUser(updatedUser);
+          return { success: true };
+        } else {
+          return { success: false, error: result.error };
+        }
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    }
+    return { success: false, error: 'No user logged in' };
   };
 
   const hasPermission = (permission) => {
     return authService.hasPermission(permission);
+  };
+
+  const getAllUsers = async () => {
+    try {
+      const result = await authService.getAllUsers();
+      return result;
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
   };
 
   const value = {
@@ -69,9 +139,11 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated,
     isLoading,
     login,
+    signUp,
     logout,
     updateUserProfile,
-    hasPermission
+    hasPermission,
+    getAllUsers
   };
 
   return (

@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
+import SignUp from './components/SignUp';
 import Dashboard from './components/Dashboard';
 import ActivityDashboard from './components/ActivityDashboard';
 import Reports from './components/Reports';
@@ -34,6 +35,16 @@ const AppContent = () => {
             <Navigate to="/dashboard" replace />
           ) : (
             <Login />
+          )
+        } 
+      />
+      <Route 
+        path="/signup" 
+        element={
+          isAuthenticated ? (
+            <Navigate to="/dashboard" replace />
+          ) : (
+            <SignUp />
           )
         } 
       />

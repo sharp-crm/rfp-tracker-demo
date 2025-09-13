@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Sidebar from './Sidebar';
+import authService from '../services/authService';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -10,6 +11,49 @@ const Settings = () => {
   const [activeMenuItem, setActiveMenuItem] = useState('settings');
   const [activeTab, setActiveTab] = useState('profile');
   const [isEditing, setIsEditing] = useState(false);
+  const [profileData, setProfileData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    department: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+
+  // Initialize profile data from current user
+  useEffect(() => {
+    if (currentUser) {
+      setProfileData({
+        name: currentUser.name || '',
+        email: currentUser.email || '',
+        phone: currentUser.phone || '',
+        department: currentUser.department || ''
+      });
+    }
+  }, [currentUser]);
+
+  // Handle profile update
+  const handleProfileUpdate = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      setSuccess(null);
+      
+      const result = await authService.updateProfile(profileData);
+      if (result.success) {
+        setSuccess('Profile updated successfully!');
+        setIsEditing(false);
+      } else {
+        setError(result.error || 'Failed to update profile');
+      }
+    } catch (err) {
+      console.error('Error updating profile:', err);
+      setError('Failed to update profile');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Safety check - if no user, show loading or redirect
   if (!currentUser) {
@@ -88,12 +132,41 @@ const Settings = () => {
       {/* Profile Form */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h4 className="text-lg font-semibold text-gray-900 mb-4">Personal Information</h4>
+        
+        {/* Success/Error Messages */}
+        {success && (
+          <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="flex">
+              <svg className="w-5 h-5 text-green-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-green-800">{success}</p>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {error && (
+          <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex">
+              <svg className="w-5 h-5 text-red-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-red-800">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
             <input
               type="text"
-              defaultValue={currentUser.name}
+              value={profileData.name}
+              onChange={(e) => setProfileData({...profileData, name: e.target.value})}
               disabled={!isEditing}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
             />
@@ -102,7 +175,8 @@ const Settings = () => {
             <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
             <input
               type="email"
-              defaultValue={currentUser.email}
+              value={profileData.email}
+              onChange={(e) => setProfileData({...profileData, email: e.target.value})}
               disabled={!isEditing}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
             />
@@ -111,7 +185,8 @@ const Settings = () => {
             <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
             <input
               type="tel"
-              defaultValue="+1 (555) 123-4567"
+              value={profileData.phone}
+              onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
               disabled={!isEditing}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
             />
@@ -120,7 +195,8 @@ const Settings = () => {
             <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
             <input
               type="text"
-              defaultValue="Business Development"
+              value={profileData.department}
+              onChange={(e) => setProfileData({...profileData, department: e.target.value})}
               disabled={!isEditing}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
             />
@@ -130,12 +206,17 @@ const Settings = () => {
           <div className="mt-6 flex justify-end space-x-3">
             <button
               onClick={() => setIsEditing(false)}
-              className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              disabled={loading}
+              className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-              Save Changes
+            <button 
+              onClick={handleProfileUpdate}
+              disabled={loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         )}

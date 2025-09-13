@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Sidebar from './Sidebar';
 import AddRfpModal from './AddRfpModal';
+import rfpService from '../services/rfpService';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -11,6 +12,32 @@ const Dashboard = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeMenuItem, setActiveMenuItem] = useState('rfp-dashboard');
   const [isRfpModalOpen, setIsRfpModalOpen] = useState(false);
+  const [rfpData, setRfpData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Load RFP data on component mount
+  useEffect(() => {
+    loadRfpData();
+  }, []);
+
+  const loadRfpData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const result = await rfpService.getAllRfps();
+      
+      if (result.success) {
+        setRfpData(result.data);
+      } else {
+        setError(result.error);
+      }
+    } catch (err) {
+      setError('Failed to load RFP data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Safety check - if no user, show loading or redirect
   if (!currentUser) {
@@ -32,128 +59,6 @@ const Dashboard = () => {
     { id: 'priority', label: 'Priority', count: 5 }
   ];
 
-  const rfpData = [
-    {
-      id: 1,
-      title: 'RFP - Naval Equipment Supply',
-      client: 'ABC Corporation',
-      date: 'May 10',
-      status: 'pending',
-      priority: 'high',
-      icon: 'folder',
-      iconColor: 'blue'
-    },
-    {
-      id: 2,
-      title: 'RFP - Defense Systems Upgrade',
-      client: 'XYZ Ltd.',
-      date: 'May 7',
-      status: 'submitted',
-      priority: 'medium',
-      icon: 'check',
-      iconColor: 'green'
-    },
-    {
-      id: 3,
-      title: 'RFP - Logistics Support Contract',
-      client: 'LMN Industries',
-      date: 'Apr 3',
-      status: 'lost',
-      priority: 'low',
-      icon: 'folder',
-      iconColor: 'gray'
-    },
-    {
-      id: 4,
-      title: 'RFP - Surveillance Equipment',
-      client: 'PQR Enterprises',
-      date: 'Apr 18',
-      status: 'pending',
-      priority: 'high',
-      icon: 'check',
-      iconColor: 'yellow'
-    },
-    {
-      id: 5,
-      title: 'RFP - Cybersecurity Services',
-      client: 'DEF Solutions',
-      date: 'May 15',
-      status: 'submitted',
-      priority: 'high',
-      icon: 'shield',
-      iconColor: 'purple'
-    },
-    {
-      id: 6,
-      title: 'RFP - Training Program Development',
-      client: 'GHI Training Co.',
-      date: 'May 20',
-      status: 'pending',
-      priority: 'medium',
-      icon: 'book',
-      iconColor: 'indigo'
-    },
-    {
-      id: 7,
-      title: 'RFP - Satellite Communication',
-      client: 'SpaceTech Inc.',
-      date: 'May 25',
-      status: 'submitted',
-      priority: 'high',
-      icon: 'shield',
-      iconColor: 'blue'
-    },
-    {
-      id: 8,
-      title: 'RFP - Medical Equipment Supply',
-      client: 'HealthCare Plus',
-      date: 'May 28',
-      status: 'pending',
-      priority: 'high',
-      icon: 'folder',
-      iconColor: 'red'
-    },
-    {
-      id: 9,
-      title: 'RFP - Software Development',
-      client: 'TechCorp Solutions',
-      date: 'May 30',
-      status: 'submitted',
-      priority: 'medium',
-      icon: 'check',
-      iconColor: 'green'
-    },
-    {
-      id: 10,
-      title: 'RFP - Infrastructure Project',
-      client: 'BuildRight Ltd.',
-      date: 'Jun 2',
-      status: 'lost',
-      priority: 'low',
-      icon: 'folder',
-      iconColor: 'gray'
-    },
-    {
-      id: 11,
-      title: 'RFP - Renewable Energy',
-      client: 'GreenPower Co.',
-      date: 'Jun 5',
-      status: 'submitted',
-      priority: 'high',
-      icon: 'shield',
-      iconColor: 'green'
-    },
-    {
-      id: 12,
-      title: 'RFP - Data Analytics Platform',
-      client: 'DataInsight Inc.',
-      date: 'Jun 8',
-      status: 'pending',
-      priority: 'medium',
-      icon: 'book',
-      iconColor: 'purple'
-    }
-  ];
 
   // Filter RFP data based on active tab
   const getFilteredRfpData = () => {
@@ -330,18 +235,23 @@ const Dashboard = () => {
     return icons[iconName] || icons.folder;
   };
 
-  const handleCreateRfp = (rfpData) => {
-    // Here you would typically send the data to your backend
-    console.log('Creating new RFP:', rfpData);
-    
-    // For now, just show an alert
-    alert(`RFP "${rfpData.title}" created successfully!`);
-    
-    // In a real application, you would:
-    // 1. Send the data to your API
-    // 2. Update the local state
-    // 3. Refresh the RFP list
-    // 4. Show a success notification
+  const handleCreateRfp = async (rfpFormData) => {
+    try {
+      const result = await rfpService.createRfp({
+        ...rfpFormData,
+        created_by: currentUser.id
+      });
+      
+      if (result.success) {
+        // Refresh the RFP list
+        await loadRfpData();
+        alert(`RFP "${rfpFormData.title}" created successfully!`);
+      } else {
+        alert(`Error creating RFP: ${result.error}`);
+      }
+    } catch (error) {
+      alert(`Error creating RFP: ${error.message}`);
+    }
   };
 
   const filteredRfpData = getFilteredRfpData();
@@ -468,7 +378,28 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="divide-y divide-gray-200">
-              {filteredRfpData.length > 0 ? (
+              {isLoading ? (
+                <div className="px-6 py-12 text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading RFPs...</p>
+                </div>
+              ) : error ? (
+                <div className="px-6 py-12 text-center">
+                  <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading RFPs</h3>
+                  <p className="text-gray-500 mb-4">{error}</p>
+                  <button
+                    onClick={loadRfpData}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              ) : filteredRfpData.length > 0 ? (
                 filteredRfpData.map((rfp) => (
                   <div key={rfp.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
                     <div className="flex items-center space-x-4">
@@ -480,7 +411,12 @@ const Dashboard = () => {
                         <p className="text-sm text-gray-500">Client: {rfp.client}</p>
                       </div>
                       <div className="flex items-center space-x-3">
-                        <span className="text-sm text-gray-500">{rfp.date}</span>
+                        <span className="text-sm text-gray-500">
+                          {new Date(rfp.created_at).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric' 
+                          })}
+                        </span>
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(rfp.status)}`}>
                           {rfp.status.charAt(0).toUpperCase() + rfp.status.slice(1)}
                         </span>
